@@ -3,6 +3,7 @@ Cicada Scan is an Active Directory enumeration tool
 ![image](https://github.com/TheBlxckCicada/Cicada-Scan/assets/68484817/d74c7953-a097-4be9-9ca2-665ff866b7cd)
 
 # Documentation 
+```markdown
 Usage: ./cicada_scan.sh -u 'username' -p 'password' -t 'target' -H 'ntlm hash' -w 'wordlist' [--full] [--crack] [--shares] [--ldap] [--smb] [--winrm] [--bloodhound]
 
 Options:
@@ -19,4 +20,5 @@ Options:
   --bloodhound  Enable bloodhound mode Enumeration
   --crack       Crack Found Hashes
   -h            Display this help message
+```
 
