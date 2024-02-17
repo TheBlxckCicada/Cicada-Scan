@@ -289,21 +289,21 @@ remove_empty(){
 
 # Function to display display_usage information
 display_usage() {
-    echo "Usage: $0 -u 'username' -p 'password' -t 'target' -H 'ntlm hash' -w 'wordlist' [--full] [--crack] [--shares] [--ldap] [--smb] [--winrm] [--bloodhound]"
-    echo "Options:"
-    echo "  -u     		Username for authentication"
-    echo "  -p   		Password for authentication"
-    echo "  -H   		NTLM Hash for authentication"
-    echo "  -t       		Target host or IP address"
-    echo "  -w       		Password list (default: rockyou.txt)"
-    echo "  --kerberos          Enable kerberoasting"
-    echo "  --ldap              Enable LDAP Enumeration"
-    echo "  --smb               Enable SMB Enumeration"
-    echo "  --full              Enable full mode Enumeration"
-    echo "  --winrm             Enable winrm mode Enumeration"
-    echo "  --bloodhound        Enable bloodhound mode Enumeration"
-    echo "  --crack             Crack Found Hashes"
-    echo "  -h, --help          Display this help message"
+    echo -e "${PURPLE}Usage: ${ORANGE}$0 -u 'username' -p 'password' -t 'target' -H 'ntlm hash' -w 'wordlist' [--full] [--crack] [--shares] [--ldap] [--smb] [--winrm] [--bloodhound]${RESET}"
+    echo -e  "${GREEN}Options:"
+    echo -e  "  -u          	Username for authentication"
+    echo -e  "  -p          	Password for authentication"
+    echo -e  "  -H          	NTLM Hash for authentication"
+    echo -e  "  -t          	Target host or IP address"
+    echo -e  "  -w          	Password list (default: rockyou.txt)"
+    echo -e  "  --kerberos          Enable kerberoasting mode"
+    echo -e  "  --ldap          	Enable LDAP mode Enumeration"
+    echo -e  "  --smb          	Enable SMB mode Enumeration"
+    echo -e  "  --full          	Enable full mode Enumeration"
+    echo -e  "  --winrm          	Enable winrm mode Enumeration"
+    echo -e  "  --bloodhound          Enable bloodhound mode Enumeration"
+    echo -e  "  --crack          	Crack Found Hashes"
+    echo -e  "  -h          	Display this help message"
     exit
 }
 
