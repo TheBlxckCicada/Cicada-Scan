@@ -1,3 +1,0 @@
-NETLOGON
-profiles$
-SYSVOL
