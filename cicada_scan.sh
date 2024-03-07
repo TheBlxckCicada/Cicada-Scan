@@ -38,7 +38,8 @@ banner(){
 		██║     ██║██║     ██╔══██║██║  ██║██╔══██║
 		╚██████╗██║╚██████╗██║  ██║██████╔╝██║  ██║
 		╚═════╝╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝
-			by theblxckcicada
+			|_ author _ 
+				   | _ theblxckcicada _|
 										   
 		   ███████╗ ██████╗ █████╗ ███╗   ██╗     
 		   ██╔════╝██╔════╝██╔══██╗████╗  ██║     
@@ -109,16 +110,17 @@ enum_winrm(){
 smb_conn(){
 	if [ -s $smb_file ]; then
 		# connect and get a list of share drives
-		cat $smb_file | awk '$6 == "READ" && $5 !~ /^(ADMIN\$|C\$|IPC\$)$/ {print $5}' > $smb_shares
+		#cat $smb_file | awk '$6 == "READ" && $5 !~ /^(ADMIN\$|C\$|IPC\$)$/ {print $5}' > $smb_shares
 		cd $smb_shares_directory
+		server_name="$target"
 		if [ -s $smb_shares ];then
 			while IFS= read -r share; do
 				if ! [ -z $share ]; then
 					echo -e "${GREEN} [+] Downloading Files From ${PINK} $share ${GREEN} SMB Share...${RESET}"
 					if [ -z "$username" ] || [ -z "$password" ]; then
-						smbclient //$domain/$share  -c 'prompt OFF;recurse ON;mget *;exit;' -N
+						smbclient \\\\$domain\\$share  -c 'prompt OFF;recurse ON;mget *;exit;' -N
 					else
-						smbclient //$domain/$share  -c 'prompt OFF;recurse ON;mget *;exit;' -U "$username%$password"
+						smbclient \\\\$domain\\$share  -c 'prompt OFF;recurse ON;mget *;exit;' -U "$username%$password"
 					fi
 				fi
 				
@@ -354,7 +356,7 @@ lookupsid_file=$lookupsid_directory/"lookupsid_file.txt"
 users_file=$lookupsid_directory/"users.txt"
 smb_file=$smb_directory/"share_drives.txt"
 smb_shares=$smb_directory/"share_names.txt"
-
+host_file="/etc/hosts"
 
 
 
@@ -394,11 +396,22 @@ banner
 # grep the domain
 domain=$(crackmapexec smb $target -u '' -p '' | grep -oP '(?<=domain:)[^)]+')
 
-grep -q "$domain$" /etc/hosts || { echo -e "${ORANGE} [+][+] Add '$target $domain' to /etc/hosts ${RESET}"; exit 1; }
+if grep -qF "$target" "$filename" && grep -qF "$domain" "$filename"; then
+    echo ""
+else
+    #echo -e "${ORANGE} [+][+] Add '$target $domain' to /etc/hosts ${RESET}"
+    echo -e "${ORANGE} [+][+] Addiing '$target $domain' to $host_file ${RESET}"
+    echo -c "${PURPLE} [*] Make sure you have permissions to write to $host_file${RESET}" 
+    echo "$target $domain" | sudo tee -a $host_file > /dev/null
+fi
 
 #echo -e "${ORANGE} [+][+] Add '$target $domain' to /etc/hosts" 
 if ! [ -z "$domain" ]; then
-	echo -e "${GREEN} [+] Enumerating ${ORANGE}$target${RESET} with   ${ORANGE}$domain${RESET}" 
+	echo -e "${GREEN} [*] Target: $target${RESET}" 
+	echo -e "${GREEN} [*] Domain: $domain${RESET}" 
+	echo -e "${GREEN} [*] Username: $username${RESET}" 
+	echo -e "${GREEN} [*] Password or Hash: $password $hash${RESET}" 
+	#echo -e "${GREEN} [+] Enumerating ${ORANGE}$target${RESET} with   ${ORANGE}$domain${RESET}" 
 	if $full_enabled;then
 		enum_smb
 		smb_conn
